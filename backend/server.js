@@ -2,6 +2,10 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const axios = require('axios');
+const multer = require('multer');
+const pdfParse = require('pdf-parse');
+const mammoth = require('mammoth');
+const fs = require('fs').promises;
 
 dotenv.config();
 
@@ -10,11 +14,92 @@ const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+
+// Multer konfigürasyonu - dosya yükleme için
+const storage = multer.memoryStorage();
+const upload = multer({ 
+  storage: storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = [
+      'text/plain',
+      'application/pdf', 
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/msword'
+    ];
+    
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Desteklenmeyen dosya türü. Sadece TXT, PDF ve Word dosyaları yükleyebilirsiniz.'));
+    }
+  }
+});
 
 // Test endpoint
 app.get('/api/test', (req, res) => {
   res.json({ message: 'Backend çalışıyor!' });
+});
+
+// Dosya içeriği çıkarma fonksiyonları
+async function extractTextFromFile(file) {
+  const { buffer, mimetype, originalname } = file;
+  
+  try {
+    switch (mimetype) {
+      case 'text/plain':
+        return buffer.toString('utf-8');
+        
+      case 'application/pdf':
+        const pdfData = await pdfParse(buffer);
+        return pdfData.text;
+        
+      case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+        const docxResult = await mammoth.extractRawText({ buffer });
+        return docxResult.value;
+        
+      case 'application/msword':
+        // .doc dosyaları için temel destek (sınırlı)
+        return buffer.toString('utf-8').replace(/[^\x20-\x7E\n\r\t]/g, ' ');
+        
+      default:
+        throw new Error('Desteklenmeyen dosya türü');
+    }
+  } catch (error) {
+    throw new Error(`Dosya okuma hatası: ${error.message}`);
+  }
+}
+
+// Dosya yükleme ve metin çıkarma endpoint'i
+app.post('/api/upload', upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'Dosya yüklenmedi' });
+    }
+
+    const extractedText = await extractTextFromFile(req.file);
+    
+    if (!extractedText || extractedText.trim().length === 0) {
+      return res.status(400).json({ error: 'Dosyadan metin çıkarılamadı' });
+    }
+
+    res.json({ 
+      text: extractedText,
+      filename: req.file.originalname,
+      size: req.file.size,
+      type: req.file.mimetype
+    });
+
+  } catch (error) {
+    console.error('Dosya yükleme hatası:', error);
+    res.status(500).json({ 
+      error: 'Dosya işleme hatası',
+      details: error.message
+    });
+  }
 });
 
 // Geliştirilmiş prompts
