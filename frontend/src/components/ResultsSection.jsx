@@ -233,40 +233,90 @@ const QuizResult = ({ content }) => {
 
 const GapsResult = ({ content }) => {
   const cleanedContent = content
+    .replace(/^##\s*/gm, '') 
+    .replace(/^\s*\d+\s*[\n\r]/m, '') 
+    .replace(/^\s*\d+\s*/, '') 
     .replace(/^\s*İşte.*?eksik.*?konular.*?[:\.]\s*/i, '') 
     .replace(/^\s*Eksik.*?konular.*?[:\.]\s*/i, '') 
+    .replace(/^\s*Derinleştirilmesi.*?gereken.*?konular.*?[:\.]\s*/i, '')
+    .replace(/^\s*Geliştirilmesi.*?gereken.*?alanlar.*?[:\.]\s*/i, '')
+    .replace(/^\s*Bu\s+ders\s+notu.*?[:\.]\s*/i, '') 
+    .replace(/^\s*Öğrencinin.*?[:\.]\s*/i, '')  
+    .replace(/^\s*Aşağıda.*?[:\.]\s*/i, '')
+    .replace(/^\s*Ders\s+notu\s+analizi.*?[:\.]\s*/i, '') 
+    .replace(/\*{2,}/g, '') 
     .replace(/\*+/g, '')
     .trim();
 
-  const lines = cleanedContent.split('\n').filter(line => line.trim());
+  const lines = cleanedContent.split('\n')
+    .map(line => line.trim())
+    .filter(line => line.length > 0)
+    .filter(line => !/^\d+\s*$/.test(line)); 
+
+  let introText = '';
+  let gapItems = [];
   
-  const gaps = lines.filter(line => {
-    const trimmed = line.trim();
+  let startIndex = 0;
+  
+  for (let i = 0; i < Math.min(3, lines.length); i++) {
+    const line = lines[i];
     
-    if (trimmed.length < 5) return false;
-    
-    const isJustTitle = /^(Eksik|Derinleştirilmesi Gereken Konular?|Geliştirilmesi Gereken|Konular?)[:.]?\s*$/i.test(trimmed);
-    if (isJustTitle) return false;
-    
-    if (trimmed.toLowerCase().startsWith('işte') || 
-        trimmed.toLowerCase().startsWith('eksik konular') ||
-        trimmed.toLowerCase().startsWith('geliştirilmesi gereken')) {
-      return false;
+    if (!line.match(/^[\•\-\*\d+\.]\s*/) && 
+        !line.includes(':') && 
+        line.length > 30 && 
+        !line.toLowerCase().startsWith('eksik') &&
+        !line.toLowerCase().startsWith('derinleş') &&
+        !line.toLowerCase().startsWith('geliştiril') &&
+        !line.toLowerCase().startsWith('bu ders') &&
+        !line.toLowerCase().startsWith('öğrencinin') &&
+        !line.toLowerCase().startsWith('aşağıda') &&
+        !line.toLowerCase().startsWith('ders notu analizi')) {
+      
+      if (introText) introText += ' ';
+      introText += line;
+      startIndex = i + 1;
+    } else {
+      break;
     }
-    
-    return trimmed.startsWith('•') || 
-           trimmed.includes(':') ||
-           trimmed.length > 15; 
-  }).map(line => {
-    return line.trim()
-      .replace(/^\*+\s*/, '')
-      .replace(/\*+$/, '')     
-      .replace(/\*+/g, '')    
-      .replace(/^•\s*/, '')    
-      .replace(/^\d+\.\s*/, '') 
-      .trim();
-  }).filter(gap => gap.length > 0);
+  }
+
+  const remainingLines = lines.slice(startIndex);
   
+  gapItems = remainingLines
+    .filter(line => {
+      const trimmed = line.trim();
+      
+      if (trimmed.length < 10) return false;
+      
+      if (/^\d+\s*$/.test(trimmed)) return false;
+      
+      const isTitle = /^(Eksik|Derinleştirilmesi Gereken|Geliştirilmesi Gereken|Konular?)[:.]?\s*$/i.test(trimmed);
+      if (isTitle) return false;
+      
+      if (trimmed.toLowerCase().startsWith('işte') || 
+          trimmed.toLowerCase().startsWith('bu ders notu') ||
+          trimmed.toLowerCase().startsWith('öğrencinin') ||
+          trimmed.toLowerCase().startsWith('aşağıda') ||
+          trimmed.toLowerCase().startsWith('ders notu analizi') ||
+          trimmed.toLowerCase().startsWith('analiz sonuçları') ||
+          trimmed.toLowerCase().includes('geliştirilmesi gereken konular şunlardır') ||
+          trimmed.toLowerCase().includes('eksik konular şunlardır')) {
+        return false;
+      }
+      
+      return true;
+    })
+    .map(line => {
+      return line.trim()
+        .replace(/^[\•\-\*]\s*/, '')
+        .replace(/^\d+\.\s*/, '')
+        .replace(/^[-•]\s*/, '')
+        .replace(/^\d+\s+/, '')
+        .replace(/^\d+/, '') 
+        .trim();
+    })
+    .filter(item => item.length > 0);
+
   return (
     <div className="bg-gradient-to-br from-orange-50 to-amber-100 rounded-2xl p-8 shadow-lg border-l-4 border-orange-500">
       <div className="flex items-center mb-6">
@@ -275,50 +325,64 @@ const GapsResult = ({ content }) => {
         </div>
         <div>
           <h3 className="text-2xl font-bold text-orange-800">Eksik Konular</h3>
-          <p className="text-orange-600">Geliştirilmesi gereken alanlar</p>
+          <p className="text-orange-600">
+            {gapItems.length > 0 
+              ? `${gapItems.length} geliştirilmesi gereken alan` 
+              : 'Geliştirilmesi gereken alanlar'}
+          </p>
         </div>
       </div>
       
       <div className="space-y-4">
-        {gaps.length > 0 ? (
-          gaps.map((gap, index) => (
-            <div key={index} className="bg-white/70 backdrop-blur-sm rounded-xl p-4 shadow-sm hover:shadow-md transition-all duration-300 border-l-2 border-orange-400">
-              <div className="flex items-center">
-                <div className="bg-orange-100 rounded-full w-8 h-8 flex items-center justify-center mr-3">
-                  <span className="text-orange-600">⚡</span>
+        {gapItems.length > 0 ? (
+          gapItems.map((gap, index) => {
+            const parts = gap.split(':');
+            const hasDescription = parts.length > 1;
+            const title = parts[0].trim();
+            const description = hasDescription ? parts.slice(1).join(':').trim() : '';
+            
+            return (
+              <div key={index} className="bg-white/70 backdrop-blur-sm rounded-xl p-4 shadow-sm hover:shadow-md transition-all duration-300 border-l-2 border-orange-400">
+                <div className="flex items-start">
+                  <div className="bg-orange-100 rounded-full w-8 h-8 flex items-center justify-center mr-3 mt-1 flex-shrink-0">
+                    <span className="text-orange-600 font-bold text-sm">{index + 1}</span>
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-semibold text-orange-800 mb-1">
+                      {title}
+                    </h4>
+                    {description && (
+                      <p className="text-gray-700 text-sm leading-relaxed">
+                        {description}
+                      </p>
+                    )}
+                  </div>
                 </div>
-                <p className="text-gray-700 flex-1">{gap}</p>
               </div>
-            </div>
-          ))
+            );
+          })
         ) : (
           <div className="bg-white/70 backdrop-blur-sm rounded-xl p-6">
             <div className="text-gray-800 leading-relaxed">
-              <div className="space-y-3">
-                {cleanedContent.split('\n').map((line, index) => {
-                  const cleanLine = line.trim()
-                    .replace(/^\*+\s*/, '')
-                    .replace(/\*+$/, '')
-                    .replace(/\*+/g, '')
-                    .replace(/^•\s*/, '')
-                    .replace(/^\d+\.\s*/, '');
-                  
-                  if (!cleanLine || 
-                      cleanLine.length < 5 ||
-                      /^(Eksik|Derinleştirilmesi Gereken Konular?|Geliştirilmesi Gereken|Konular?)[:.]?\s*$/i.test(cleanLine) ||
-                      cleanLine.toLowerCase().startsWith('işte') || 
-                      cleanLine.toLowerCase().startsWith('eksik konular') ||
-                      cleanLine.toLowerCase().startsWith('geliştirilmesi gereken')) {
-                    return null;
-                  }
-                  
-                  return (
-                    <div key={index} className="p-3 bg-orange-50 rounded-lg border-l-3 border-orange-300">
-                      {cleanLine}
-                    </div>
-                  );
-                }).filter(Boolean)}
-              </div>
+              {cleanedContent.split('\n').map((line, index) => {
+                const cleanLine = line.trim()
+                  .replace(/^##\s*/, '')
+                  .replace(/^\*+\s*/, '')
+                  .replace(/\*+$/, '')
+                  .replace(/\*+/g, '')
+                  .replace(/^[\•\-]\s*/, '')
+                  .replace(/^\d+\.\s*/, '')
+                  .replace(/^\d+\s+/, '')
+                  .replace(/^\d+/, ''); 
+                
+                if (!cleanLine || cleanLine.length < 5) return null;
+                
+                return (
+                  <div key={index} className="mb-3 p-3 bg-orange-50 rounded-lg border-l-3 border-orange-300">
+                    {cleanLine}
+                  </div>
+                );
+              }).filter(Boolean)}
             </div>
           </div>
         )}
