@@ -46,7 +46,7 @@ function App() {
     formData.append('file', file);
 
     try {
-      const response = await fetch('http://localhost:5000/api/upload', {
+      const response = await fetch('/api/upload', {
         method: 'POST',
         body: formData
       });
@@ -91,7 +91,7 @@ function App() {
     try {
       const analysis = analysisMap[analysisType];
       
-      const response = await fetch('http://localhost:5000/api/gemini/analyze', {
+      const response = await fetch('/api/gemini/analyze', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

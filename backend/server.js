@@ -6,6 +6,7 @@ const multer = require('multer');
 const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
 const fs = require('fs').promises;
+const path = require('path'); 
 
 dotenv.config();
 
@@ -294,6 +295,13 @@ function extractSection(text, sectionName) {
   const regex = new RegExp(`## ${sectionName}\\s*([\\s\\S]*?)(?=## |$)`, 'i');
   const match = text.match(regex);
   return match ? match[1].trim() : `${sectionName} bölümü bulunamadı`;
+}
+
+if (process.env.NODE_ENV === 'production') {
+  app.use(express.static(path.join(__dirname, '../frontend/dist')));
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
+  });
 }
 
 app.listen(PORT, () => {
