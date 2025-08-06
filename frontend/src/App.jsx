@@ -118,16 +118,6 @@ function App() {
     }
   };
 
-  const testBackend = async () => {
-    try {
-      const response = await fetch('http://localhost:5000/api/test');
-      const data = await response.json();
-      alert(data.message);
-    } catch (error) {
-      alert('Backend bağlantısı başarısız');
-    }
-  };
-
   const clearText = () => {
     setText('');
     setUploadedFile(null);
@@ -136,7 +126,7 @@ function App() {
 
   return (
     <div className="min-h-screen">
-      <Header onTestBackend={testBackend} />
+      <Header/>
       <Hero />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
